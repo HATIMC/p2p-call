@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secret Calling Platform</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="join-page">
+
+  <div class="join-wrap">
+    <div class="join-brand">
+      <div class="join-icon">📡</div>
+      <h1>Secret Calling Platform</h1>
+      <p>Private peer-to-peer calls.<br>No accounts. No recordings.</p>
+    </div>
+
+    <div class="join-card">
+      <label class="join-label" for="username-input">Choose a username</label>
+      <form id="join-form">
+        <div class="username-row">
+          <input
+            id="username-input"
+            type="text"
+            placeholder="e.g. abcd1234"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="32"
+            required
+            autofocus
+          >
+          <button type="button" id="username-refresh-btn" class="username-refresh-btn" title="Generate username">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 3.5v4h-4M2.5 12.5v-4h4M12.1 6A4.5 4.5 0 004.3 4.4L2.5 6m1.4 4a4.5 4.5 0 007.8 1.6l1.8-1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <button type="submit" id="join-btn">
+          <span>Join</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+      <p id="join-error" class="join-error hidden"></p>
+      <p class="join-hint">Auto-generated names use 4 letters + 4 numbers. You can edit it.</p>
+    </div>
+  </div>
+
+  <script>
+    const form  = document.getElementById('join-form');
+    const input = document.getElementById('username-input');
+    const refreshNameBtn = document.getElementById('username-refresh-btn');
+    const errEl = document.getElementById('join-error');
+    const btn   = document.getElementById('join-btn');
+    const inviteTarget = new URLSearchParams(window.location.search).get('call');
+    if (inviteTarget) sessionStorage.setItem('pending-call', inviteTarget.trim().toLowerCase());
+
+    const prevErr = sessionStorage.getItem('join-error');
+    if (prevErr) {
+      errEl.textContent = prevErr;
+      errEl.classList.remove('hidden');
+      sessionStorage.removeItem('join-error');
+    }
+
+    function randomUsername() {
+      const letters = 'abcdefghijklmnopqrstuvwxyz';
+      let name = '';
+      for (let i = 0; i < 4; i++) name += letters[Math.floor(Math.random() * letters.length)];
+      for (let i = 0; i < 4; i++) name += Math.floor(Math.random() * 10);
+      return name;
+    }
+
+    function setRandomUsername() {
+      input.value = randomUsername();
+      input.select();
+    }
+
+    if (!input.value) setRandomUsername();
+    refreshNameBtn.addEventListener('click', setRandomUsername);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = input.value.trim().toLowerCase();
+      if (!username) return;
+
+      btn.disabled = true;
+      btn.querySelector('span').textContent = 'Joining…';
+      errEl.classList.add('hidden');
+
+      try {
+        const res  = await fetch('/api/register', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ username, peerId: username }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errEl.textContent = data.error === 'taken'
+            ? `"${username}" is already taken — try another.`
+            : (data.error || 'Could not register.');
+          errEl.classList.remove('hidden');
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Join';
+          return;
+        }
+
+        if (!data.sessionToken || data.sessionToken === 'undefined' || data.sessionToken === 'null') {
+          errEl.textContent = 'Could not create a secure session.';
+          errEl.classList.remove('hidden');
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Join';
+          return;
+        }
+
+        sessionStorage.setItem('username', data.username);
+        sessionStorage.setItem('session-token', data.sessionToken);
+        const pendingCall = sessionStorage.getItem('pending-call');
+        window.location.href = pendingCall
+          ? `/app.html?call=${encodeURIComponent(pendingCall)}`
+          : '/app.html';
+      } catch {
+        errEl.textContent = 'Could not reach server.';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Join';
+      }
+    });
+  </script>
+</body>
+</html>

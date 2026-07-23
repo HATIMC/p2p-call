@@ -1,0 +1,7 @@
+node_modules/
+dist/
+db/users.db
+db/users.db-shm
+db/users.db-wal
+certs/
+.DS_Store
